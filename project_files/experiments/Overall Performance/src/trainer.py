@@ -474,10 +474,13 @@ class Trainer(object):
             beta.append((p[1], p[0], i))
         beta.sort()
         ans = 0
-        for i in range(num):
+        eff = min(num, len(beta))
+        if eff == 0:
+            return 0.0
+        for i in range(eff):
             if beta[i][2] < num:
                 ans += 1
-        return ans / num
+        return ans / eff
 
     def score(self, testing_graph_set='test', test_k=0):
         """

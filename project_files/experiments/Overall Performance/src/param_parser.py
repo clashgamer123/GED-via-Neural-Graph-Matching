@@ -189,4 +189,19 @@ def parameter_parser():
                         default='gin',
                         help="GNN operator [gcn, gin, transformer]. Default is gin.")
 
+    parser.add_argument("--heads",
+                        type=int,
+                        default=4,
+                        help="Number of attention heads for TransformerConv. Default is 4.")
+
+    parser.add_argument("--num-layers",
+                        type=int,
+                        default=3,
+                        help="Number of GNN encoder layers (only honored for transformer). Default is 3.")
+
+    parser.add_argument("--residual",
+                        action="store_true",
+                        default=False,
+                        help="Use residual connections between Transformer encoder layers.")
+
     return parser.parse_args()

@@ -25,7 +25,7 @@ def main():
              #   trainer.score('test2')
     else:
         trainer.cur_epoch = args.model_epoch_start
-        trainer.score('test', test_k=100)
+        trainer.score('test', test_k=0)
         # trainer.batch_score('test', test_k=100)
         """
         test_matching = True

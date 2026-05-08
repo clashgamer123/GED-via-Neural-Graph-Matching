@@ -356,11 +356,26 @@ class GedGNN(torch.nn.Module):
             self.convolution_2 = GINConv(nn2, train_eps=True)
             self.convolution_3 = GINConv(nn3, train_eps=True)
         elif self.args.gnn_operator == 'transformer':
-            self.convolution_1 = TransformerConv(self.number_labels, self.args.filters_1 // 4, heads=4, dropout=self.args.dropout)
-            self.convolution_2 = TransformerConv(self.args.filters_1, self.args.filters_2 // 4, heads=4, dropout=self.args.dropout)
-            self.convolution_3 = TransformerConv(self.args.filters_2, self.args.filters_3 // 4, heads=4, dropout=self.args.dropout)
-            self.norm_1 = LayerNorm(self.args.filters_1)
-            self.norm_2 = LayerNorm(self.args.filters_2)
+            heads = getattr(self.args, 'heads', 4)
+            num_layers = getattr(self.args, 'num_layers', 3)
+            assert num_layers >= 2, "transformer encoder needs at least 2 layers"
+            if num_layers == 3:
+                dims = [self.number_labels, self.args.filters_1, self.args.filters_2, self.args.filters_3]
+            else:
+                dims = [self.number_labels] + [self.args.filters_1] * (num_layers - 1) + [self.args.filters_3]
+            self.tf_convs = torch.nn.ModuleList()
+            self.tf_norms = torch.nn.ModuleList()
+            self.tf_residual_proj = torch.nn.ModuleList()
+            for i in range(num_layers):
+                in_dim, out_dim = dims[i], dims[i + 1]
+                assert out_dim % heads == 0, f"filters {out_dim} must be divisible by heads {heads}"
+                self.tf_convs.append(TransformerConv(in_dim, out_dim // heads, heads=heads, dropout=self.args.dropout))
+                if i < num_layers - 1:
+                    self.tf_norms.append(LayerNorm(out_dim))
+                    if getattr(self.args, 'residual', False):
+                        self.tf_residual_proj.append(
+                            torch.nn.Linear(in_dim, out_dim) if in_dim != out_dim else torch.nn.Identity()
+                        )
         else:
             raise NotImplementedError('Unknown GNN-Operator.')
 
@@ -388,28 +403,34 @@ class GedGNN(torch.nn.Module):
         :param features: Feature matrix.
         :return features: Abstract feature matrix.
         """
-        features = self.convolution_1(features, edge_index)
         if self.args.gnn_operator == 'transformer':
-            features = self.norm_1(features)
-            features = torch.nn.functional.elu(features)
-        else:
-            features = torch.nn.functional.relu(features)
+            use_residual = getattr(self.args, 'residual', False)
+            num_layers = len(self.tf_convs)
+            for i, conv in enumerate(self.tf_convs):
+                prev = features
+                h = conv(features, edge_index)
+                if i < num_layers - 1:
+                    h = self.tf_norms[i](h)
+                    h = torch.nn.functional.elu(h)
+                    if use_residual:
+                        h = h + self.tf_residual_proj[i](prev)
+                    h = torch.nn.functional.dropout(h, p=self.args.dropout, training=self.training)
+                features = h
+            return features
+
+        features = self.convolution_1(features, edge_index)
+        features = torch.nn.functional.relu(features)
         features = torch.nn.functional.dropout(features,
                                                p=self.args.dropout,
                                                training=self.training)
 
         features = self.convolution_2(features, edge_index)
-        if self.args.gnn_operator == 'transformer':
-            features = self.norm_2(features)
-            features = torch.nn.functional.elu(features)
-        else:
-            features = torch.nn.functional.relu(features)
+        features = torch.nn.functional.relu(features)
         features = torch.nn.functional.dropout(features,
                                                p=self.args.dropout,
                                                training=self.training)
 
         features = self.convolution_3(features, edge_index)
-        # features = torch.sigmoid(features)
         return features
 
     def get_bias_value(self, abstract_features_1, abstract_features_2):
