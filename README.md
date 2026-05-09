@@ -11,7 +11,7 @@ This repository empirically investigates and extends **GedGNN**, a state-of-the-
 
 > Piao, C., et al. (2023). *Computing Graph Edit Distance via Neural Graph Matching.* PVLDB 2023.
 
-The key contribution of this project is the integration of a **Configurable Graph Transformer encoder** to replace standard local message-passing backends (GIN/GCN). We validate that global attention mechanisms and deeper architectures significantly alleviate the performance bottlenecks found in traditional GNNs when processing larger, more complex graphs.
+The key contribution of this project is the integration of a **Configurable Graph Transformer encoder** to replace standard local message-passing backends (GIN/GCN). We validate that **multi-head neighborhood attention** and deeper architectures significantly alleviate the performance bottlenecks found in traditional GNNs when processing larger, more complex graphs.
 
 ---
 
