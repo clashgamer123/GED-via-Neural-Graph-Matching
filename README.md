@@ -1,68 +1,116 @@
 # GED-via-Neural-Graph-Matching (CS 768)
 
-An extension of the **GedGNN** architecture (VLDB 2023) for neural Graph Edit Distance (GED) approximation. This project introduces a **configurable Graph Transformer encoder**, enables **GPU acceleration**, and provides a comprehensive **ablation study** on depth, attention heads, and residual connections across AIDS, Linux, and IMDB datasets.
+**Course:** CS 768 – Graph Representation Learning  
+**Project:** Neural Graph Matching for Graph Edit Distance (GED) Approximation
 
 ---
 
-## 🚀 Quick Start (Demo Mode)
-To verify the setup and see a "smoke test" run (1 epoch on a small subset of data):
+## Project Overview
 
+This repository empirically investigates and extends **GedGNN**, a state-of-the-art framework for neural Graph Edit Distance approximation. 
+
+> Piao, C., et al. (2023). *Computing Graph Edit Distance via Neural Graph Matching.* PVLDB 2023.
+
+The key contribution of this project is the integration of a **Configurable Graph Transformer encoder** to replace standard local message-passing backends (GIN/GCN). We validate that global attention mechanisms and deeper architectures significantly alleviate the performance bottlenecks found in traditional GNNs when processing larger, more complex graphs.
+
+---
+
+## Repository Structure
+
+```text
+root/
+├── README.md                          # Comprehensive project guide
+├── IMPLEMENTATION_NOTES.md            # Technical rationale & design decisions
+├── VIVA_PREP.md                       # Defense Q&A and study guide
+│
+└── project_files/
+    ├── requirements.txt               # Dependencies (PyTorch, PyG, DGL)
+    └── experiments/
+        └── Overall Performance/
+            ├── result/                # Aggregated metrics (SUMMARY.md) & logs
+            ├── model_save/            # Checkpoint storage
+            └── src/                   # Active Implementation
+                ├── models.py          # GedGNN with configurable Transformer backend
+                ├── trainer.py         # Training loop, GPU synchronization & metrics
+                ├── param_parser.py    # Hyperparameter CLI interface
+                ├── GedMatrix.py       # Differentiable Cost & Mapping modules
+                └── kbest_matching_with_lb.py # Murty’s k-best Hungarian post-processing
+```
+
+---
+
+## Setup
+
+### 1. Environment Configuration
 ```bash
-# Navigate to the active experiment directory
-cd "project_files/experiments/Overall Performance/"
+python3 -m venv venv
+source venv/bin/activate
+pip install -r project_files/requirements.txt
+```
 
-# Run the Transformer-based GedGNN in demo mode
+### 2. Core Dependencies
+- **PyTorch / PyTorch Geometric:** Neural matching and `TransformerConv` implementation.
+- **DGL:** Graph data structures and legacy baseline aggregations.
+- **NetworkX / Scipy:** Graph manipulation and evaluation utilities.
+
+---
+
+## Running the Experiments
+
+All commands must be executed from `project_files/experiments/Overall Performance/`.
+
+### Phase 1: Quick Demo (Smoke Test)
+Run a single epoch on a subset of the AIDS dataset to verify the Transformer pipeline:
+```bash
 python src/main.py --model-name GedGNN --dataset AIDS --gnn-operator transformer --demo --model-train 1 --model-epoch-end 1
 ```
 
----
-
-## 🛠 Project Overview & Contributions
-The core of this project is extending the GedGNN pipeline (Encoder → Differentiable Matching → k-best Post-processing) by replacing the local GIN/GCN encoders with a more expressive Transformer-based backbone.
-
-### Key Modifications
-*   **Graph Transformer Encoder**: Integrated `TransformerConv` with multi-head attention.
-*   **Hyperparameter Control**: Added CLI flags for `--heads`, `--num-layers`, and `--residual`.
-*   **GPU Optimization**: Fixed hardcoded CPU flags and tensor device synchronization bugs.
-*   **Bug Fixes**: Patched an `IndexError` in the precision-at-k (`cal_pk`) metric calculation.
-
----
-
-## 📁 Repository Structure
-*   `project_files/experiments/Overall Performance/src/`: **Active Source Code.**
-*   `project_files/experiments/Overall Performance/result/`: Contains `SUMMARY.md` with final metrics.
-
-
----
-
-## 📊 Experimental Results (Highlights)
-We ran a 24-cell ablation study comparing GIN/GCN baselines against various Transformer configurations.
-
-*   **IMDB (Large Graphs)**: The Transformer encoder (L=4) achieved a **2.2x improvement in MAE** (4.42 vs 9.75) over the GIN baseline.
-*   **AIDS (Small Graphs)**: While absolute error was similar, the Transformer significantly improved **ranking metrics** (Spearman ρ jumped from 0.11 to 0.68).
-*   **Depth scaling**: Our findings confirm that encoder depth should scale with graph size; deeper models improved IMDB results but caused over-smoothing on smaller AIDS graphs.
-
----
-
-## ⚙️ Detailed Running Instructions
-All commands should be run from `project_files/experiments/Overall Performance/`.
-
-### 1. Training a Model
-To train the Graph Transformer for 20 epochs on AIDS:
+### Phase 2: Full Training Sweep
+Train the Graph Transformer (4 heads, 3 layers) on the IMDB dataset for 20 epochs:
 ```bash
-python src/main.py --model-name GedGNN --dataset AIDS --gnn-operator transformer --heads 4 --num-layers 3 --model-epoch-start 0 --model-epoch-end 20 --model-train 1
+python src/main.py --model-name GedGNN --dataset IMDB --gnn-operator transformer --heads 4 --num-layers 3 --model-epoch-start 0 --model-epoch-end 20 --model-train 1
 ```
 
-### 2. Evaluation / Post-processing
-To run the k-best matching algorithm (k=1000) using a saved checkpoint:
+### Phase 3: Post-Processing & Refinement
+Execute Murty’s $k$-best matching algorithm using a pre-trained checkpoint to refine GED estimates:
 ```bash
-python src/main.py --model-name GedGNN --dataset AIDS --gnn-operator transformer --model-train 0 --model-epoch-start 20 --postk 1000
+python src/main.py --model-name GedGNN --dataset IMDB --gnn-operator transformer --model-train 0 --model-epoch-start 20 --postk 1000
 ```
 
 ---
 
-## 📦 Requirements
-*   Python 3.8+
-*   PyTorch 1.8.2 / PyTorch Geometric 2.0.4
-*   DGL 0.7.0
-*   NetworkX / Scipy / Matplotlib
+## Key Experimental Results
+
+| Dataset | Metric | GIN (Baseline) | Transformer (Ours) | Improvement |
+| :--- | :--- | :--- | :--- | :--- |
+| **IMDB** | MAE | 9.75 | **4.42** | **2.2x Lower Error** |
+| **AIDS** | Spearman $\rho$ | 0.11 | **0.68** | **6.1x Better Ranking** |
+
+**Headline Findings:**
+- **Depth Scaling:** For larger ego-networks (IMDB), increasing encoder depth is the primary driver for accuracy, with MAE dropping monotonically from 13.9 to 4.4 across 4 layers.
+- **Attention Synergy:** In molecular retrieval (AIDS), attention-based mixing significantly improves ranking metrics ($\rho$), even when pointwise error (MAE) remains comparable to GIN.
+
+---
+
+## Code Reference
+
+### `models.py`
+- `GedGNN`: Core architecture implementing differentiable matching.
+- `Transformer branch`: Utilizes `out_dim // heads` logic to maintain constant parameter counts across head ablations.
+- `Residual Projections`: Employs learned `Linear` mappings for dimension alignment in the residual path.
+
+### `trainer.py`
+- `fit()`: Orchestrates the dual-loss objective (Pointwise Value Loss + Structural Mapping Supervision).
+- `cal_pk()`: Patched metric calculation to ensure stability during small-scale and demo evaluations.
+- `self.use_gpu`: Robust device detection for seamless CPU/GPU transitions.
+
+### `kbest_matching_with_lb.py`
+- `KBestMSolver`: Implementation of Murty's algorithm with lower-bound pruning for exact GED refinement.
+
+---
+
+## References
+
+1. Piao, C., et al. (2023). *Computing Graph Edit Distance via Neural Graph Matching.* PVLDB.
+2. Shi, Y., et al. (2021). *Masked Label Prediction: Unified Message Passing Model for Semi-Supervised Classification.* (TransformerConv implementation).
+3. Xu, K., et al. (2019). *How Powerful are Graph Neural Networks?* ICLR. (GIN baseline).
