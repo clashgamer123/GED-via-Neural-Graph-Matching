@@ -31,8 +31,7 @@ The core of this project is extending the GedGNN pipeline (Encoder → Different
 ## 📁 Repository Structure
 *   `project_files/experiments/Overall Performance/src/`: **Active Source Code.**
 *   `project_files/experiments/Overall Performance/result/`: Contains `SUMMARY.md` with final metrics.
-*   `IMPLEMENTATION_NOTES.md`: Detailed technical rationale and design decisions.
-*   `VIVA_PREP.md`: Key questions and "cheat sheet" for project defense.
+
 
 ---
 
